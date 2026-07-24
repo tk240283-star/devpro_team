@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ワーク05：サーバノード実装報告</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<div class="container">
+    <h1>サーバデータ表示</h1>
+    
+    <h2>◆ センサーデータグラフ</h2>
+    <div class="chart-box">
+        <canvas id="sensorChart"></canvas>
+    </div>
+
+    <h2>◆ データログ一覧（テーブル形式）</h2>
+    <div class="table-wrapper">
+        <table>
+            <thead>
+                <tr>
+                    <th>タイムスタンプ</th>
+                    <th>気温 (°C)</th>
+                    <th>湿度 (%)</th>
+                </tr>
+            </thead>
+            <tbody id="data-table-body">
+                </tbody>
+        </table>
+    </div>
+</div>
+
+<script>
+    // 画面の読み込みが完了したら実行する処理
+    document.addEventListener('DOMContentLoaded', async () => {
+        try {
+            const response = await fetch('/api/data');
+            const dataList = await response.json();
+            
+            if (dataList.error) {
+                console.error("データ取得エラー:", dataList.error);
+                return;
+            }
+
+            // 1. テーブルの動的生成
+            const tbody = document.getElementById('data-table-body');
+            tbody.innerHTML = '';
+            
+            dataList.forEach(row => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td>${row.timestamp}</td>
+                    <td>${row.temperature}</td>
+                    <td>${row.humidity}</td>
+                `;
+                tbody.appendChild(tr);
+            });
+
+            // 2. グラフ用にデータを各配列に分解
+            const timestamps = dataList.map(item => item.timestamp);
+            const temperatures = dataList.map(item => item.temperature);
+            const humidities = dataList.map(item => item.humidity);
+
+            // 3. Chart.js の設定と描画（2軸グラフ）
+            const ctx = document.getElementById('sensorChart').getContext('2d');
+            new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: timestamps,
+                    datasets: [
+                        {
+                            label: '気温 (°C)',
+                            data: temperatures,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            yAxisID: 'y-temp',
+                            borderWidth: 2,
+                            tension: 0.2
+                        },
+                        {
+                            label: '湿度 (%)',
+                            data: humidities,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            yAxisID: 'y-humid',
+                            borderWidth: 2,
+                            tension: 0.2
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        'y-temp': {
+                            type: 'linear',
+                            position: 'left',
+                            title: { display: true, text: '気温 (°C)' }
+                        },
+                        'y-humid': {
+                            type: 'linear',
+                            position: 'right',
+                            title: { display: true, text: '湿度 (%)' },
+                            grid: { drawOnChartArea: false } // 線が重なるのを防ぐ
+                        }
+                    }
+                }
+            });
+
+        } catch (error) {
+            console.error("通信エラーが発生しました:", error);
+        }
+    });
+</script>
+
+</body>
+</html>
