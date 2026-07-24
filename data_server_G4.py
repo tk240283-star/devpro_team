@@ -46,17 +46,35 @@ def start_server():
 
                 try:
                     json_data = json.loads(message)
-                    
+
                     if isinstance(json_data, list):
                         json_data = json_data[0]
-                        
+
                     temperature = json_data.get("temperature", "")
                     humidity = json_data.get("humidity", "")
-                except json.JSONDecodeError:
-                    temperature = "error"
-                    humidity = "error"
+                    # どのセンサノードから届いたデータかを記録する。
+                    node_id = json_data.get("node_id", "unknown")
 
-                print(f"[{now}] Temp: {temperature}, Hum: {humidity}")
+                    # センサノードが測定した時刻を優先する。（受信時刻ではなく測定時刻を残す。）
+                    measured = json_data.get("time", "")
+                    if measured:
+                        try:
+                            now = datetime.datetime.fromisoformat(measured).strftime(
+                                '%Y-%m-%d %H:%M:%S')
+                        except ValueError:
+                            # 時刻の形式が不正なら受信時刻のままにする。
+                            pass
+                except json.JSONDecodeError:
+                    print(f"[{now}] JSONではないデータを受信したため保存しません。")
+                    continue
+
+                # 温度・湿度が欠けているデータは測定値ではないので保存しない。
+                if temperature == "" or humidity == "":
+                    print(f"[{now}] 温度・湿度が欠けているため保存しません。")
+                    continue
+
+                print(f"[{now}] Node: {node_id}  Temp: {temperature}, Hum: {humidity}")
+
 
                 # CSVへの保存 #2
                 file_exists = os.path.isfile(SAVE_FILE)
@@ -64,9 +82,9 @@ def start_server():
                     fcntl.flock(f, fcntl.LOCK_EX)
 
                     if not file_exists:
-                        f.write("timestamp,temperature,humidity\n")
+                        f.write("timestamp,temperature,humidity,node_id\n")
 
-                    f.write(f"{now},{temperature},{humidity}\n")
+                    f.write(f"{now},{temperature},{humidity},{node_id}\n")
 
                     f.flush() 
                     fcntl.flock(f, fcntl.LOCK_UN)  """

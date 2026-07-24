@@ -10,6 +10,24 @@ dht_device = adafruit_dht.DHT22(board.D26)
 SERVER_IP = "10.192.137.117"
 PORT = 8765
 
+def get_node_id():
+    """Raspberry Piのシリアル番号をセンサノードの識別子として使う。
+
+    シリアル番号はハードウェア固有なので、ノードごとの設定が要らず、重複もしない。
+    取得できない環境では "unknown" を返し、送信自体は続けられるようにする。
+    """
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("Serial"):
+                    return line.split(":")[1].strip()
+    except OSError:
+        pass
+    return "unknown"
+
+
+NODE_ID = get_node_id()
+
 try:
     while True:
         try:
@@ -29,6 +47,7 @@ try:
             print(f"Humidity: {humidity:.1f} %")
 
             data = {
+                "node_id":NODE_ID,
                 "time": str(datetime.datetime.now()),
                 "temperature": temperature,
                 "humidity": humidity

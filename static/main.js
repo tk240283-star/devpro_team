@@ -22,7 +22,7 @@ window.onload = () => {
             data.forEach(row => {
 
                 // テーブルへ表示するHTMLを作成
-                tableHtml += `<tr><td>${row.timestamp}</td><td>${row.temperature}</td><td>${row.humidity}</td></tr>`;
+                tableHtml += `<tr><td>${row.timestamp}</td><td>${row.node_id}</td><td>${row.temperature}</td><td>${row.humidity}</td></tr>`;
 
                 // グラフ表示用のデータを配列へ保存
                 timeLabels.push(row.timestamp);
