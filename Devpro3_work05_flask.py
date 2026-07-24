@@ -76,7 +76,7 @@ def add_cors_headers(response):
 
 @app.route("/", methods=["GET"])
 def index():
-    return render_template("Devpro3_work05_html.html")
+    return render_template("Devpro3_html.html")
 
 
 @app.route("/api/data", methods=["GET"])
@@ -89,7 +89,7 @@ def get_data_api():
         with open(CSV_PATH, mode="r", newline="", encoding="utf-8") as csv_file:
             lock_file(csv_file, fcntl.LOCK_SH if fcntl is not None else None)
             try:
-                reader = csv.DictReader(csv_file)
+                """reader = csv.DictReader(csv_file)
                 for row in reader:
                     try:
                         data_list.append({
@@ -98,6 +98,18 @@ def get_data_api():
                             "humidity": float(row["humidity"]),
                         })
                     except (KeyError, TypeError, ValueError):
+                        # 壊れた行があっても、正常な行は取得できるようにする。"""
+                # ヘッダーの有無や余分な列があるCSVでも読めるように、先頭3列だけを使う。
+                for row in csv.reader(csv_file):
+                    if len(row) < 3 or row[:3] == CSV_HEADER:
+                        continue
+                    try:
+                        data_list.append({
+                            "timestamp": row[0],
+                            "temperature": float(row[1]),
+                            "humidity": float(row[2]),
+                        })
+                    except ValueError:
                         # 壊れた行があっても、正常な行は取得できるようにする。
                         continue
             finally:
