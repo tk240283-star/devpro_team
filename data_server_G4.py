@@ -2,11 +2,13 @@ import socket
 import datetime
 import os
 import json
+import threading #2
 
 PORT = 8765
 BUFFER_SIZE = 1024
 SAVE_FILE = "sensor_data.csv"
 IP_ADDRESS = "0.0.0.0"
+csv_lock = threading.Lock() #2
 
 def start_server():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -41,12 +43,15 @@ def start_server():
 
                 print(f"[{now}] Temp: {temperature}, Hum: {humidity}")
 
-                # CSVへの保存
-                file_exists = os.path.isfile(SAVE_FILE)
-                with open(SAVE_FILE, mode='a', encoding='utf-8') as f:
-                    if not file_exists:
-                        f.write("timestamp,temperature,humidity\n")
-                    f.write(f"{now},{temperature},{humidity}\n")
+                # CSVへの保存 #2
+                with csv_lock:
+                    file_exists = os.path.isfile(SAVE_FILE)
+
+                    with open(SAVE_FILE, mode="a", encoding="utf-8") as f:
+                        if not file_exists:
+                            f.write("timestamp,temperature,humidity\n")
+
+                        f.write(f"{now},{temperature},{humidity}\n")
 
 if __name__ == "__main__":
     start_server()
