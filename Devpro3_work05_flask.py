@@ -1,7 +1,7 @@
 from flask import Flask, render_template, jsonify, request
 import csv
 from datetime import datetime
-import fcntl #2
+import portalocker  # Windows対応のファイルロックライブラリ
 
 app = Flask(__name__)
 
@@ -13,52 +13,44 @@ def index():
 @app.route("/api/data", methods=["GET"])
 def get_data_api():
     print("Hello! (to Terminal)")
-
     data_list = []
     file_path = "work05/sensor_data.csv"
 
     print("csvを読み込むよ！")
     try:
-        with open(file_path, mode='r', encoding='utf-8') as f:
-            fcntl.flock(f, fcntl.LOCK_SH) #2
-            print("csvを読み込んだ結果を表示するね！")
-
+        # portalocker.LOCK_SH (共有ロック) でファイルを開く
+        with portalocker.Lock(file_path, mode='r', timeout=5, flags=portalocker.LOCK_SH, encoding='utf-8') as f:
             reader = csv.reader(f)
-            next(reader)
-        
+            next(reader, None)  # ヘッダーをスキップ
+
             for row in reader:
+                if not row: continue
                 date_str = row[0]
                 temp = float(row[1])
                 humid = float(row[2])
-                data_list.append({"timestamp":date_str, "temperature":temp, "humidity":humid})
-                print(f"日付: {date_str}, 温度: {temp}, 湿度: {humid}")
-                fcntl.flock(f, fcntl.LOCK_UN) #2
-        
+                data_list.append({"timestamp": date_str, "temperature": temp, "humidity": humid})
+
         return jsonify(data_list)
     except FileNotFoundError:
         print("csvファイルが見つからないよ！")
-    return "CSVファイルが見つかりません", 404 
+        return jsonify({"result": "error", "message": "CSVファイルが見つかりません"}), 404
 
 @app.route("/api/data", methods=["POST"])
 def post_data_api():
     print("アプリからデータを受信しました")
-
     data = request.get_json()
 
     try:
         temperature = float(data["temperature"])
         humidity = float(data["humidity"])
-
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-
         file_path = "work05/sensor_data.csv"
 
-        with open(file_path, mode="a", newline="", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX) #2
+        # portalocker.LOCK_EX (排他ロック) でファイル追記
+        with portalocker.Lock(file_path, mode='a', timeout=5, flags=portalocker.LOCK_EX, encoding='utf-8', newline='') as f:
             writer = csv.writer(f)
             writer.writerow([timestamp, temperature, humidity])
-            f.flush() #2
-            fcntl.flock(f, fcntl.LOCK_UN) #2
+            f.flush()
 
         print(f"保存しました: {timestamp}, {temperature}, {humidity}")
 
@@ -76,4 +68,4 @@ def post_data_api():
 
 
 if __name__ == "__main__":
-    app.run(host = '0.0.0.0', port = 5001, debug=True)
+    app.run(host='0.0.0.0', port=5001, debug=True)
