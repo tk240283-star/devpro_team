@@ -8,7 +8,6 @@ PORT = 8765
 BUFFER_SIZE = 1024
 SAVE_FILE = "sensor_data.csv"
 IP_ADDRESS = "0.0.0.0"
-csv_lock = threading.Lock() #2
 
 def start_server():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
@@ -31,7 +30,6 @@ def start_server():
                 try:
                     json_data = json.loads(message)
                     
-                    # リスト形式で送られてきた場合の対応
                     if isinstance(json_data, list):
                         json_data = json_data[0]
                         
