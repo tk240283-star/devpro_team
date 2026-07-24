@@ -219,8 +219,7 @@ if __name__ == '__main__':
             except DHT22MissingDataError:
                 print('DHT22MissingDataError: '+ str(datetime.datetime.now()))
             time.sleep(3)
-            if count > 5:
-                break
+            
         
 
     except KeyboardInterrupt:
