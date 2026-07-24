@@ -2,7 +2,7 @@ import socket
 import datetime
 import os
 import json
-import threading #2
+import fcntl #2
 
 PORT = 8765
 BUFFER_SIZE = 1024
@@ -44,14 +44,17 @@ def start_server():
                 print(f"[{now}] Temp: {temperature}, Hum: {humidity}")
 
                 # CSVへの保存 #2
-                with csv_lock:
-                    file_exists = os.path.isfile(SAVE_FILE)
+                file_exists = os.path.isfile(SAVE_FILE)
+                with open(SAVE_FILE, mode="a", encoding="utf-8") as f:
+                    fcntl.flock(f, fcntl.LOCK_EX)
 
-                    with open(SAVE_FILE, mode="a", encoding="utf-8") as f:
-                        if not file_exists:
-                            f.write("timestamp,temperature,humidity\n")
+                    if not file_exists:
+                        f.write("timestamp,temperature,humidity\n")
 
-                        f.write(f"{now},{temperature},{humidity}\n")
+                    f.write(f"{now},{temperature},{humidity}\n")
+
+                    f.flush() 
+                    fcntl.flock(f, fcntl.LOCK_UN)  
 
 if __name__ == "__main__":
     start_server()
