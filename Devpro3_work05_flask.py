@@ -1,9 +1,8 @@
 from flask import Flask, render_template, jsonify, request
 import csv
 from datetime import datetime
-import fcntl #2
 
-app = Flask(__name__)
+app = Flask(__name__, template_folder='.')
 
 @app.route("/", methods=["GET"])
 def index():
@@ -15,12 +14,11 @@ def get_data_api():
     print("Hello! (to Terminal)")
 
     data_list = []
-    file_path = "work05/sensor_data.csv"
+    file_path = "sensor_data.csv"
 
     print("csvを読み込むよ！")
     try:
         with open(file_path, mode='r', encoding='utf-8') as f:
-            fcntl.flock(f, fcntl.LOCK_SH) #2
             print("csvを読み込んだ結果を表示するね！")
 
             reader = csv.reader(f)
@@ -32,7 +30,6 @@ def get_data_api():
                 humid = float(row[2])
                 data_list.append({"timestamp":date_str, "temperature":temp, "humidity":humid})
                 print(f"日付: {date_str}, 温度: {temp}, 湿度: {humid}")
-                fcntl.flock(f, fcntl.LOCK_UN) #2
         
         return jsonify(data_list)
     except FileNotFoundError:
@@ -51,14 +48,12 @@ def post_data_api():
 
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
 
-        file_path = "work05/sensor_data.csv"
+        file_path = "sensor_data.csv"
 
         with open(file_path, mode="a", newline="", encoding="utf-8") as f:
-            fcntl.flock(f, fcntl.LOCK_EX) #2
             writer = csv.writer(f)
             writer.writerow([timestamp, temperature, humidity])
-            f.flush() #2
-            fcntl.flock(f, fcntl.LOCK_UN) #2
+            f.flush()
 
         print(f"保存しました: {timestamp}, {temperature}, {humidity}")
 
