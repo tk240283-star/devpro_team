@@ -17,7 +17,7 @@ app = Flask(__name__)
 # このPythonファイルと同じフォルダへCSVを保存する。
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "sensor_data.csv")
-CSV_HEADER = ["timestamp", "temperature", "humidity"]
+CSV_HEADER = ["timestamp", "temperature", "humidity", "node_id"]
 
 
 def lock_file(csv_file, lock_type):
@@ -44,7 +44,7 @@ def ensure_csv_file():
             unlock_file(csv_file)
 
 
-def append_sensor_data(timestamp, temperature, humidity):
+def append_sensor_data(timestamp, temperature, humidity, node_id):
     """排他ロック中にCSVへセンサーデータを1行追加する。"""
     ensure_csv_file()
 
@@ -59,7 +59,7 @@ def append_sensor_data(timestamp, temperature, humidity):
                     csv_file.write("\n")
 
             csv_file.seek(0, os.SEEK_END)
-            csv.writer(csv_file).writerow([timestamp, temperature, humidity])
+            csv.writer(csv_file).writerow([timestamp, temperature, humidity, node_id])
             csv_file.flush()
         finally:
             unlock_file(csv_file)
@@ -99,15 +99,17 @@ def get_data_api():
                         })
                     except (KeyError, TypeError, ValueError):
                         # 壊れた行があっても、正常な行は取得できるようにする。"""
-                # ヘッダーの有無や余分な列があるCSVでも読めるように、先頭3列だけを使う。
+                # ヘッダーの有無やnode_id列の有無に関わらず読めるようにする。
                 for row in csv.reader(csv_file):
-                    if len(row) < 3 or row[:3] == CSV_HEADER:
+                    if len(row) < 3 or row[:3] == CSV_HEADER[:3]:
                         continue
                     try:
                         data_list.append({
                             "timestamp": row[0],
                             "temperature": float(row[1]),
                             "humidity": float(row[2]),
+                            # node_id列が無い古い行は "unknown" として扱う。
+                            "node_id": row[3] if len(row) > 3 else "unknown",
                         })
                     except ValueError:
                         # 壊れた行があっても、正常な行は取得できるようにする。
@@ -156,8 +158,13 @@ def post_data_api():
     except (TypeError, ValueError):
         return jsonify({"error": "temperature と humidity は有効な数値で指定してください。"}), 400
 
+    # 手動追加は特定のセンサノード由来ではないので、既定値を入れておく。
+    node_id = data.get("node_id", "manual")
+    if not isinstance(node_id, str) or not node_id:
+        return jsonify({"error": "node_id は空でない文字列で指定してください。"}), 400
+
     try:
-        append_sensor_data(timestamp, temperature, humidity)
+        append_sensor_data(timestamp, temperature, humidity, node_id)
         app.logger.info("CSVへ保存しました: %s, %s, %s", timestamp, temperature, humidity)
         return jsonify({"status": "success"}), 201
     except OSError as error:
