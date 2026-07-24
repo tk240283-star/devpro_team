@@ -16,31 +16,41 @@ try:
             temperature = dht_device.temperature
             humidity = dht_device.humidity
 
-            if temperature is not None and humidity is not None:
-                print(f"Temperature: {temperature:.1f} ℃")
-                print(f"Humidity: {humidity:.1f} %")
+            if temperature is None or humidity is None:
+                
+                print("温湿度を取得できませんでした。次回の測定へ移ります。")
+                time.sleep(5)
+                continue
 
-                data = {
-                    "time": str(datetime.datetime.now()),
-                    "temperature": temperature,
-                    "humidity": humidity
-                }
+            now = datetime.datetime.now()
 
-                json_data = json.dumps(data)
+            print(f"Last valid input: {now}")
+            print(f"Temperature: {temperature:.1f} ℃")
+            print(f"Humidity: {humidity:.1f} %")
 
-                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
-                    sock.connect((SERVER_IP, PORT))
-                    sock.send(json_data.encode("utf-8"))
+            data = {
+                "time": str(datetime.datetime.now()),
+                "temperature": temperature,
+                "humidity": humidity
+            }
 
-                print("データ送信完了")
+            json_data = json.dumps(data)
 
-            else:
-                print("センサ値を取得できませんでした")
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.connect((SERVER_IP, PORT))
+                sock.send(json_data.encode("utf-8"))
+
+            print("データ送信完了")
 
         except RuntimeError as e:
-            print(f"読み取りエラー: {e}")
+            print(f"センサ読み取りエラー: {e}")
+            print("このデータは送信せず、次回の測定を行います。")
 
-        time.sleep(3)
+
+        except Exception as e:
+            print(f"エラー: {e}")
+
+        time.sleep(5)
 
 except KeyboardInterrupt:
     print("終了します")
