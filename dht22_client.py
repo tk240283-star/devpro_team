@@ -184,6 +184,24 @@ class DHT22:
 SERVER_IP = "10.192.137.117"
 PORT = 8765
 
+def get_node_id():
+    """Raspberry Piのシリアル番号をセンサノードの識別子として使う。
+
+    シリアル番号はハードウェア固有なので、ノードごとの設定が要らず、重複もしない。
+    取得できない環境では "unknown" を返し、送信自体は続けられるようにする。
+    """
+    try:
+        with open("/proc/cpuinfo", encoding="utf-8") as f:
+            for line in f:
+                if line.startswith("Serial"):
+                    return line.split(":")[1].strip()
+    except OSError:
+        pass
+    return "unknown"
+
+
+NODE_ID = get_node_id()
+
 if __name__ == '__main__':
     import datetime
     dht22_instance = DHT22(gpio=26)
@@ -198,32 +216,39 @@ if __name__ == '__main__':
                 print("Temperature: %-3.1f C" % tempe)
                 print("Humidity: %-3.1f %%" % hum)
                 data = {
+                    "node_id":NODE_ID,
                     "time":str(datetime.datetime.now()),
                     "temperature":tempe,
                     "humidity":hum
                 }
                 json_data = json.dumps(data)
-                sock = socket.socket(
-                    socket.AF_INET,                    
-                    socket.SOCK_STREAM
-                )
                 print("data")
-                sock.connect((SERVER_IP, PORT))
-                sock.send(json_data.encode("utf-8"))
-                sock.close()
+                # withを使い、送信に失敗してもソケットを確実に閉じる。
+                with socket.socket(
+                    socket.AF_INET,
+                    socket.SOCK_STREAM
+                ) as sock:
+                    sock.connect((SERVER_IP, PORT))
+                    sock.send(json_data.encode("utf-8"))
                 print("send data")
                 count += 1
-                
+
             except DHT22CRCError:
                 print('DHT22CRCError: ' + str(datetime.datetime.now()))
             except DHT22MissingDataError:
                 print('DHT22MissingDataError: '+ str(datetime.datetime.now()))
+            except Exception as e:
+                # サーバが混んでいる・停止しているなどの通信エラーでセンサノードを止めない。
+                # 次の周期で送信を再試行する。
+                print('Error: ' + str(e) + ' ' + str(datetime.datetime.now()))
             time.sleep(3)
             
         
 
     except KeyboardInterrupt:
         print('Ctrl-C is pressed.')
+    finally:
+        # どの終了経路でもGPIOを解放する。（解放し忘れると次回起動時にGPIO busyになる。）
         print('Closing DHT22 instance.')
         dht22_instance.close()
 

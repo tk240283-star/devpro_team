@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>サーバノード実装報告</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- 天気エフェクト（main.jsが気温に応じて中身を差し替える） -->
+<div id="effect-area"></div>
+
+<div id="wrapper">
+    <h1>サーバデータ表示</h1>
+
+    <div class="info-box" id="status-msg">データを読み込んでいます。</div>
+
+    <h2>◆ センサーデータグラフ</h2>
+    <canvas id="myChart"></canvas>
+
+    <h2>◆ 日別平均</h2>
+    <div id="daily-avg"></div>
+
+    <h2>◆ データログ一覧（テーブル形式）</h2>
+    <div class="table-scroll">
+        <table>
+            <thead>
+                <tr>
+                    <th>タイムスタンプ</th>
+                    <th>ノードID</th>
+                    <th>気温 (°C)</th>
+                    <th>湿度 (%)</th>
+                </tr>
+            </thead>
+            <tbody id="table-body">
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='main.js') }}"></script>
+
+</body>
+</html>
