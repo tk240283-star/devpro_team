@@ -73,18 +73,18 @@ def start_server():
                         if not file_exists or os.path.getsize(SAVE_FILE) == 0:
                             f.write("timestamp,temperature,humidity,node_id\n")
 
-                            # 既存ファイルの末尾に改行がなくても、最終行を壊さずに追記する。
-                            f.seek(0, os.SEEK_END)
-                            if f.tell() > 0:
-                                f.seek(f.tell() - 1)
-                                if f.read(1) not in ("\n", "\r"):
-                                    f.write("\n")
+                    # 既存ファイルの末尾に改行がなくても、最終行を壊さずに追記する。
+                    f.seek(0, os.SEEK_END)
+                    if f.tell() > 0:
+                        f.seek(f.tell() - 1)
+                        if f.read(1) not in ("\n", "\r"):
+                            f.write("\n")
 
-                            f.seek(0, os.SEEK_END)
-                            f.write(f"{now},{temperature},{humidity}\n")
+                    f.seek(0, os.SEEK_END)
+                    f.write(f"{now},{temperature},{humidity}\n")
 
-                            f.flush()
-                        print("CSVへ保存しました")
+                    f.flush()
+                print("CSVへ保存しました")
 
 if __name__ == "__main__":
     start_server()
