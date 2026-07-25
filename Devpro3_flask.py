@@ -2,14 +2,11 @@ import csv
 from datetime import datetime
 import math
 import os
+import fasteners
 
 from flask import Flask, jsonify, render_template, request
 
-try:
-    import fcntl
-except ImportError:
-    # Windowsなどfcntlを利用できない環境でもアプリを起動できるようにする。
-    fcntl = None
+
 
 
 app = Flask(__name__)
@@ -18,51 +15,41 @@ app = Flask(__name__)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 CSV_PATH = os.path.join(BASE_DIR, "sensor_data.csv")
 CSV_HEADER = ["timestamp", "temperature", "humidity", "node_id"]
+LOCK_FILE = CSV_PATH + ".lock"
+lock = fasteners.InterProcessLock(LOCK_FILE)
 
 
-def lock_file(csv_file, lock_type):
-    """fcntlが利用できる環境ではCSVファイルをロックする。"""
-    if fcntl is not None:
-        fcntl.flock(csv_file.fileno(), lock_type)
-
-
-def unlock_file(csv_file):
-    if fcntl is not None:
-        fcntl.flock(csv_file.fileno(), fcntl.LOCK_UN)
 
 
 def ensure_csv_file():
-    """CSVが存在しない場合は、ヘッダー付きで作成する。"""
-    with open(CSV_PATH, "a+", newline="", encoding="utf-8") as csv_file:
-        lock_file(csv_file, fcntl.LOCK_EX if fcntl is not None else None)
-        try:
-            csv_file.seek(0, os.SEEK_END)
-            if csv_file.tell() == 0:
-                csv.writer(csv_file).writerow(CSV_HEADER)
-                csv_file.flush()
-        finally:
-            unlock_file(csv_file)
+    with lock:
+        """CSVが存在しない場合は、ヘッダー付きで作成する。"""
+        with open(CSV_PATH, "a+", newline="", encoding="utf-8") as csv_file:
+                csv_file.seek(0, os.SEEK_END)
+                if csv_file.tell() == 0:
+                    csv.writer(csv_file).writerow(CSV_HEADER)
+                    csv_file.flush()
 
 
 def append_sensor_data(timestamp, temperature, humidity, node_id):
     """排他ロック中にCSVへセンサーデータを1行追加する。"""
     ensure_csv_file()
 
-    with open(CSV_PATH, "a+", newline="", encoding="utf-8") as csv_file:
-        lock_file(csv_file, fcntl.LOCK_EX if fcntl is not None else None)
-        try:
-            # 既存ファイルの末尾に改行がなくても、最終行を壊さずに追記する。
-            csv_file.seek(0, os.SEEK_END)
-            if csv_file.tell() > 0:
-                csv_file.seek(csv_file.tell() - 1)
-                if csv_file.read(1) not in ("\n", "\r"):
-                    csv_file.write("\n")
+    with lock:
+        with open(CSV_PATH, "a+", newline="", encoding="utf-8") as csv_file:
+            try:
+                # 既存ファイルの末尾に改行がなくても、最終行を壊さずに追記する。
+                csv_file.seek(0, os.SEEK_END)
+                if csv_file.tell() > 0:
+                    csv_file.seek(csv_file.tell() - 1)
+                    if csv_file.read(1) not in ("\n", "\r"):
+                        csv_file.write("\n")
 
-            csv_file.seek(0, os.SEEK_END)
-            csv.writer(csv_file).writerow([timestamp, temperature, humidity, node_id])
-            csv_file.flush()
-        finally:
-            unlock_file(csv_file)
+                csv_file.seek(0, os.SEEK_END)
+                csv.writer(csv_file).writerow([timestamp, temperature, humidity, node_id])
+                csv_file.flush()
+            except:
+                print("行追加できませんでした")
 
 
 @app.after_request
@@ -85,42 +72,30 @@ def get_data_api():
     ensure_csv_file()
     data_list = []
 
-    try:
-        with open(CSV_PATH, mode="r", newline="", encoding="utf-8") as csv_file:
-            lock_file(csv_file, fcntl.LOCK_SH if fcntl is not None else None)
-            try:
-                """reader = csv.DictReader(csv_file)
-                for row in reader:
-                    try:
-                        data_list.append({
-                            "timestamp": row["timestamp"],
-                            "temperature": float(row["temperature"]),
-                            "humidity": float(row["humidity"]),
-                        })
-                    except (KeyError, TypeError, ValueError):
-                        # 壊れた行があっても、正常な行は取得できるようにする。"""
-                # ヘッダーの有無やnode_id列の有無に関わらず読めるようにする。
-                for row in csv.reader(csv_file):
-                    if len(row) < 3 or row[:3] == CSV_HEADER[:3]:
-                        continue
-                    try:
-                        data_list.append({
-                            "timestamp": row[0],
-                            "temperature": float(row[1]),
-                            "humidity": float(row[2]),
-                            # node_id列が無い古い行は "unknown" として扱う。
-                            "node_id": row[3] if len(row) > 3 else "unknown",
-                        })
-                    except ValueError:
-                        # 壊れた行があっても、正常な行は取得できるようにする。
-                        continue
-            finally:
-                unlock_file(csv_file)
-
-        return jsonify(data_list), 200
-    except OSError as error:
-        app.logger.exception("CSVの読み込みに失敗しました: %s", error)
-        return jsonify({"error": "CSVファイルを読み込めませんでした。"}), 500
+    with lock:
+        try:
+            with open(CSV_PATH, mode="r", newline="", encoding="utf-8") as csv_file:
+                
+                    # ヘッダーの有無やnode_id列の有無に関わらず読めるようにする。
+                    for row in csv.reader(csv_file):
+                        if len(row) < 3 or row[:3] == CSV_HEADER[:3]:
+                            continue
+                        try:
+                            data_list.append({
+                                "timestamp": row[0],
+                                "temperature": float(row[1]),
+                                "humidity": float(row[2]),
+                                # node_id列が無い古い行は "unknown" として扱う。
+                                "node_id": row[3] if len(row) > 3 else "unknown",
+                            })
+                        except ValueError:
+                            # 壊れた行があっても、正常な行は取得できるようにする。
+                            continue
+                
+            return jsonify(data_list), 200
+        except OSError as error:
+            app.logger.exception("CSVの読み込みに失敗しました: %s", error)
+            return jsonify({"error": "CSVファイルを読み込めませんでした。"}), 500
 
 
 @app.route("/api/data", methods=["POST"])
